@@ -86,7 +86,7 @@ h1,h2,h3{font-family:'Fraunces',Georgia,serif; margin:0;}
   .workspace{grid-template-columns:1fr;}
   .toolbar{order:1;}
   .canvas-wrap{order:2;}
-  .catalog{order:3;}
+  .catalog{order:3; position:static; max-height:none; overflow-y:visible;}
 }
 
 .panel{
@@ -97,7 +97,7 @@ h1,h2,h3{font-family:'Fraunces',Georgia,serif; margin:0;}
 }
 
 /* ---------- TOOLBAR ---------- */
-.toolbar{padding:18px; position:sticky; top:16px;}
+.toolbar{padding:18px;}
 .toolbar h3{font-size:15px; margin-bottom:4px;}
 .toolbar .hint{font-size:12.5px; color:var(--ink-soft); line-height:1.5; margin-bottom:14px;}
 .tool-grid{display:flex; flex-direction:column; gap:8px;}
@@ -113,7 +113,7 @@ h1,h2,h3{font-family:'Fraunces',Georgia,serif; margin:0;}
 .btn.on{background:var(--clay); border-color:var(--clay); color:var(--white);}
 .btn.primary{background:var(--sage); border-color:var(--sage); color:var(--white);}
 .btn.primary:hover{background:var(--sage-dark); border-color:var(--sage-dark);}
-.btn.ghost{background:transparent; border-color:transparent; color:var(--ink-soft); padding:6px 4px;}
+.btn.ghost{background:transparent; border-color:var(--line); color:var(--ink-soft); padding:10px 12px;}
 .btn.danger{color:var(--warn-dark);}
 .btn:disabled{opacity:0.4; cursor:not-allowed; transform:none;}
 .swatch{width:14px; height:14px; border-radius:4px; flex:none; border:1.5px solid rgba(0,0,0,0.15);}
@@ -799,20 +799,40 @@ function makeBtn(label, opts){
    depend on it look unresponsive ("locked"). */
 function showConfirm(message, onYes){
   const overlay = document.createElement('div');
-  overlay.style.cssText = 'position:fixed; inset:0; background:rgba(43,42,37,0.5); z-index:5000; display:flex; align-items:center; justify-content:center; padding:20px;';
+  overlay.style.cssText = 'position:fixed; left:0; top:0; width:100%; background:rgba(43,42,37,0.5); z-index:5000; display:flex; align-items:center; justify-content:center; padding:20px; overflow-y:auto; box-sizing:border-box;';
   const box = document.createElement('div');
-  box.style.cssText = 'background:var(--panel); border:1.5px solid var(--line); border-radius:var(--radius); padding:22px; max-width:320px; width:100%; box-shadow:var(--shadow);';
+  box.style.cssText = 'background:var(--panel); border:1.5px solid var(--line); border-radius:var(--radius); padding:22px; max-width:320px; width:100%; box-shadow:var(--shadow); margin:auto;';
   const msg = document.createElement('div');
   msg.style.cssText = 'font-family:Inter,sans-serif; font-size:14px; line-height:1.5; color:var(--ink); margin-bottom:18px;';
   msg.textContent = message;
   box.appendChild(msg);
   const row = document.createElement('div');
   row.style.cssText = 'display:flex; gap:8px; justify-content:flex-end;';
-  row.appendChild(makeBtn('Cancel', {ghost:true, onClick:()=>overlay.remove()}));
-  row.appendChild(makeBtn('Yes, continue', {primary:true, onClick:()=>{ overlay.remove(); onYes(); }}));
+
+  // Mobile browsers (esp. iOS Safari) resize their on-screen address bar, which
+  // makes plain `100vh` / `top:0;bottom:0` overlays taller than what's actually
+  // visible, so buttons can render off-screen and appear "floating"/unreachable.
+  // Sizing against visualViewport instead keeps this locked to what's really shown.
+  function syncHeight(){
+    const h = window.visualViewport ? window.visualViewport.height : window.innerHeight;
+    overlay.style.height = h + 'px';
+  }
+  syncHeight();
+  const viewport = window.visualViewport;
+  if(viewport) viewport.addEventListener('resize', syncHeight);
+  else window.addEventListener('resize', syncHeight);
+
+  function close(){
+    if(viewport) viewport.removeEventListener('resize', syncHeight);
+    else window.removeEventListener('resize', syncHeight);
+    overlay.remove();
+  }
+
+  row.appendChild(makeBtn('Cancel', {ghost:true, onClick:close}));
+  row.appendChild(makeBtn('Yes, continue', {primary:true, onClick:()=>{ close(); onYes(); }}));
   box.appendChild(row);
   overlay.appendChild(box);
-  overlay.addEventListener('click', (e)=>{ if(e.target===overlay) overlay.remove(); });
+  overlay.addEventListener('click', (e)=>{ if(e.target===overlay) close(); });
   document.body.appendChild(overlay);
 }
 
